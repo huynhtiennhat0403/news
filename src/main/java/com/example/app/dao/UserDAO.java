@@ -9,11 +9,12 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UserDAO {
 
     // 1. Hàm kiểm tra đăng nhập
-    // Trả về đối tượng User nếu đúng, null nếu sai
     public User checkLogin(String username, String password) {
         User user = null;
         String sql = "SELECT * FROM users WHERE username = ? AND password = ? AND status = 'ACTIVE'";
@@ -22,8 +23,7 @@ public class UserDAO {
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, username);
-            stmt.setString(2, password); // Lưu ý: Ở đây đang so sánh plain text. Sau này nên dùng MD5/BCrypt.
-
+            stmt.setString(2, password);
             ResultSet rs = stmt.executeQuery();
 
             if (rs.next()) {
@@ -46,7 +46,6 @@ public class UserDAO {
             stmt.setString(2, user.getPassword());
             stmt.setString(3, user.getFullName());
             stmt.setString(4, user.getEmail());
-            // Chuyển Enum sang String để lưu vào DB
             stmt.setString(5, UserRole.USER.name());
 
             int rowsInserted = stmt.executeUpdate();
@@ -58,21 +57,21 @@ public class UserDAO {
         }
     }
 
-    // 3. Hàm kiểm tra username đã tồn tại chưa (để validate khi đăng ký)
+    // 3. Kiểm tra username đã tồn tại
     public boolean isUsernameExists(String username) {
         String sql = "SELECT id FROM users WHERE username = ?";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, username);
             ResultSet rs = stmt.executeQuery();
-            return rs.next(); // Nếu có dữ liệu -> Trả về true
+            return rs.next();
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
         }
     }
 
-    // 4. Hàm cập nhật lần đăng nhập cuối (Cái này dùng cho chức năng lọc user 2 tháng)
+    // 4. Cập nhật lần đăng nhập cuối
     public void updateLastLogin(int userId) {
         String sql = "UPDATE users SET last_login = NOW() WHERE id = ?";
         try (Connection conn = DBConnection.getConnection();
@@ -84,8 +83,155 @@ public class UserDAO {
         }
     }
 
-    // --- HÀM PHỤ TRỢ: Map dữ liệu từ ResultSet sang User Object ---
-    // Giúp code gọn hơn, đỡ phải viết đi viết lại đoạn này
+    // 5. Lấy tất cả user (Admin quản lý)
+    public List<User> findAll() {
+        List<User> list = new ArrayList<>();
+        String sql = "SELECT * FROM users ORDER BY created_at DESC";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                list.add(mapResultSetToUser(rs));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    // 6. Tìm user theo ID
+    public User findById(int userId) {
+        String sql = "SELECT * FROM users WHERE id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, userId);
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                return mapResultSetToUser(rs);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    // 7. Khóa/Mở khóa user (Admin)
+    public boolean updateStatus(int userId, UserStatus status) {
+        String sql = "UPDATE users SET status = ? WHERE id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, status.name());
+            stmt.setInt(2, userId);
+
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // 8. Đếm tổng số user (Thống kê Admin)
+    public int countAll() {
+        String sql = "SELECT COUNT(*) as total FROM users";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("total");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    // 9. Đếm user theo role
+    public int countByRole(UserRole role) {
+        String sql = "SELECT COUNT(*) as total FROM users WHERE role = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, role.name());
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                return rs.getInt("total");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    // 10. Lấy danh sách user không online trong 2 tháng (để dọn dẹp)
+    public List<User> findInactiveUsers(int months) {
+        List<User> list = new ArrayList<>();
+        String sql = "SELECT * FROM users " +
+                "WHERE last_login IS NULL OR last_login < DATE_SUB(NOW(), INTERVAL ? MONTH) " +
+                "AND role = 'USER' " + // Không xóa Admin
+                "ORDER BY last_login ASC";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, months);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                list.add(mapResultSetToUser(rs));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    // 11. Xóa user (Admin dọn dẹp)
+    public boolean deleteUser(int userId) {
+        String sql = "DELETE FROM users WHERE id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, userId);
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // 12. Xóa nhiều user cùng lúc (Batch delete)
+    public int deleteMultipleUsers(List<Integer> userIds) {
+        if (userIds == null || userIds.isEmpty()) return 0;
+
+        StringBuilder sql = new StringBuilder("DELETE FROM users WHERE id IN (");
+        for (int i = 0; i < userIds.size(); i++) {
+            sql.append("?");
+            if (i < userIds.size() - 1) sql.append(",");
+        }
+        sql.append(")");
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
+
+            for (int i = 0; i < userIds.size(); i++) {
+                stmt.setInt(i + 1, userIds.get(i));
+            }
+
+            return stmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return 0;
+        }
+    }
+
+    // --- HÀM PHỤ TRỢ ---
     private User mapResultSetToUser(ResultSet rs) throws SQLException {
         User user = new User();
         user.setId(rs.getInt("id"));
@@ -94,47 +240,16 @@ public class UserDAO {
         user.setFullName(rs.getString("full_name"));
         user.setEmail(rs.getString("email"));
 
-        // Xử lý Enum: Lấy String từ DB -> convert sang Enum Java
         try {
             user.setRole(UserRole.valueOf(rs.getString("role")));
             user.setStatus(UserStatus.valueOf(rs.getString("status")));
         } catch (IllegalArgumentException e) {
-            // Trường hợp DB lưu sai giá trị enum thì set mặc định
             user.setRole(UserRole.USER);
+            user.setStatus(UserStatus.ACTIVE);
         }
 
         user.setLastLogin(rs.getTimestamp("last_login"));
         user.setCreatedAt(rs.getTimestamp("created_at"));
         return user;
-    }
-
-    // --- MAIN TEST: Chạy thử ngay tại đây ---
-    public static void main(String[] args) {
-        UserDAO dao = new UserDAO();
-
-        // Test 1: Đăng ký
-        System.out.println("--- Test Đăng Ký ---");
-        User newUser = new User();
-        newUser.setUsername("test_user_1");
-        newUser.setPassword("123456");
-        newUser.setFullName("Nguyen Van Test");
-        newUser.setEmail("test@gmail.com");
-
-        if (dao.isUsernameExists("test_user_1")) {
-            System.out.println("User đã tồn tại, bỏ qua đăng ký.");
-        } else {
-            boolean regResult = dao.register(newUser);
-            System.out.println("Đăng ký thành công: " + regResult);
-        }
-
-        // Test 2: Đăng nhập
-        System.out.println("\n--- Test Đăng Nhập ---");
-        User loginUser = dao.checkLogin("test_user_1", "123456");
-        if (loginUser != null) {
-            System.out.println("Login OK! Hello " + loginUser.getFullName());
-            System.out.println("Role: " + loginUser.getRole());
-        } else {
-            System.out.println("Login thất bại!");
-        }
     }
 }

@@ -415,4 +415,204 @@ public class ArticleDAO {
         }
         return 0;
     }
+
+    // Lấy bài viết theo category (cho Guest xem theo chuyên mục)
+    public List<Article> findByCategory(int categoryId) {
+        List<Article> list = new ArrayList<>();
+        String sql = "SELECT a.*, u.full_name, c.name as category_name " +
+                "FROM articles a " +
+                "JOIN users u ON a.user_id = u.id " +
+                "JOIN categories c ON a.category_id = c.id " +
+                "WHERE a.category_id = ? AND a.status = 'PUBLISHED' " +
+                "ORDER BY a.created_at DESC";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, categoryId);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                Article a = new Article();
+                a.setId(rs.getInt("id"));
+                a.setTitle(rs.getString("title"));
+                a.setShortDescription(rs.getString("short_description"));
+                a.setThumbnail(rs.getString("thumbnail"));
+                a.setViews(rs.getInt("views"));
+                a.setCreatedAt(rs.getTimestamp("created_at"));
+                a.setAuthorName(rs.getString("full_name"));
+                a.setCategoryName(rs.getString("category_name"));
+                list.add(a);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    // Tìm kiếm bài viết theo từ khóa (title hoặc short_description)
+    public List<Article> search(String keyword) {
+        List<Article> list = new ArrayList<>();
+        String sql = "SELECT a.*, u.full_name, c.name as category_name " +
+                "FROM articles a " +
+                "JOIN users u ON a.user_id = u.id " +
+                "JOIN categories c ON a.category_id = c.id " +
+                "WHERE a.status = 'PUBLISHED' " +
+                "AND (a.title LIKE ? OR a.short_description LIKE ?) " +
+                "ORDER BY a.created_at DESC";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            String searchPattern = "%" + keyword + "%";
+            stmt.setString(1, searchPattern);
+            stmt.setString(2, searchPattern);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                Article a = new Article();
+                a.setId(rs.getInt("id"));
+                a.setTitle(rs.getString("title"));
+                a.setShortDescription(rs.getString("short_description"));
+                a.setThumbnail(rs.getString("thumbnail"));
+                a.setViews(rs.getInt("views"));
+                a.setCreatedAt(rs.getTimestamp("created_at"));
+                a.setAuthorName(rs.getString("full_name"));
+                a.setCategoryName(rs.getString("category_name"));
+                list.add(a);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    // User yêu cầu gỡ bài đã PUBLISHED
+    public boolean requestRemove(int articleId, String userMessage) {
+        String sql = "UPDATE articles SET status = 'REMOVE_PENDING', user_message = ?, updated_at = ? WHERE id = ?";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            Timestamp now = new Timestamp(System.currentTimeMillis());
+            stmt.setString(1, userMessage);
+            stmt.setTimestamp(2, now);
+            stmt.setInt(3, articleId);
+
+            return stmt.executeUpdate() > 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // Admin xử lý yêu cầu gỡ bài: Đồng ý (xóa) hoặc từ chối (giữ lại)
+    public boolean handleRemoveRequest(int articleId, boolean approve, String adminMessage) {
+        if (approve) {
+            // Đồng ý gỡ bài → Xóa luôn
+            return delete(articleId);
+        } else {
+            // Từ chối gỡ → Khôi phục về PUBLISHED + ghi lý do
+            String sql = "UPDATE articles SET status = 'PUBLISHED', admin_message = ?, user_message = NULL, updated_at = ? WHERE id = ?";
+            try (Connection conn = DBConnection.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+                Timestamp now = new Timestamp(System.currentTimeMillis());
+                stmt.setString(1, adminMessage);
+                stmt.setTimestamp(2, now);
+                stmt.setInt(3, articleId);
+
+                return stmt.executeUpdate() > 0;
+            } catch (Exception e) {
+                e.printStackTrace();
+                return false;
+            }
+        }
+    }
+
+    // Kiểm tra xem bài viết có thể sửa/xóa không (DRAFT, PENDING, REJECTED)
+    public boolean canEdit(int articleId, int userId) {
+        String sql = "SELECT status FROM articles WHERE id = ? AND user_id = ?";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, articleId);
+            stmt.setInt(2, userId);
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                String status = rs.getString("status");
+                // Chỉ được sửa/xóa khi ở trạng thái DRAFT, PENDING, REJECTED
+                return status.equals("DRAFT") || status.equals("PENDING") || status.equals("REJECTED");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    // Kiểm tra xem bài viết có thể yêu cầu gỡ không (phải PUBLISHED)
+    public boolean canRequestRemove(int articleId, int userId) {
+        String sql = "SELECT status FROM articles WHERE id = ? AND user_id = ?";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, articleId);
+            stmt.setInt(2, userId);
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                String status = rs.getString("status");
+                return status.equals("PUBLISHED");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    // Lấy danh sách bài đang chờ gỡ (REMOVE_PENDING) - Admin xử lý
+    public List<Article> findRemovePending() {
+        List<Article> list = new ArrayList<>();
+        String sql = "SELECT a.*, u.full_name, c.name as category_name " +
+                "FROM articles a " +
+                "JOIN users u ON a.user_id = u.id " +
+                "JOIN categories c ON a.category_id = c.id " +
+                "WHERE a.status = 'REMOVE_PENDING' " +
+                "ORDER BY a.updated_at ASC";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                Article a = new Article();
+                a.setId(rs.getInt("id"));
+                a.setTitle(rs.getString("title"));
+                a.setShortDescription(rs.getString("short_description"));
+                a.setContent(rs.getString("content"));
+                a.setThumbnail(rs.getString("thumbnail"));
+                a.setViews(rs.getInt("views"));
+                a.setCategoryId(rs.getInt("category_id"));
+                a.setUserId(rs.getInt("user_id"));
+                a.setCreatedAt(rs.getTimestamp("created_at"));
+                a.setUpdatedAt(rs.getTimestamp("updated_at"));
+
+                String statusStr = rs.getString("status");
+                a.setStatus(ArticleStatus.valueOf(statusStr));
+
+                a.setAuthorName(rs.getString("full_name"));
+                a.setCategoryName(rs.getString("category_name"));
+                a.setUserMessage(rs.getString("user_message"));
+
+                list.add(a);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
 }
