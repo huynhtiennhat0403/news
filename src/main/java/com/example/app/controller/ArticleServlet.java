@@ -232,8 +232,7 @@ public class ArticleServlet extends HttpServlet {
         Part filePart = request.getPart("thumbnail");
         String thumbnailPath = null;
         if (filePart != null && filePart.getSize() > 0) {
-            String realPath = request.getServletContext().getRealPath("");
-            thumbnailPath = Upload.saveFile(filePart, realPath);
+            thumbnailPath = Upload.saveFile(filePart);  // Không cần truyền realPath nữa
         }
 
         Article article = new Article();

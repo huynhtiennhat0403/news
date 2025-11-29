@@ -58,7 +58,22 @@
 
                     <div class="mb-3 col-md-6">
                         <label class="form-label">Ảnh thumbnail</label>
-                        <input type="file" name="thumbnail" accept="image/*" class="form-control">
+
+                        <!-- Preview ảnh -->
+                        <div class="mb-2">
+                            <img id="thumbnailPreview"
+                                 src="https://via.placeholder.com/300x200?text=Chọn+ảnh"
+                                 alt="Preview"
+                                 class="img-thumbnail"
+                                 style="max-height: 200px; width: 100%; object-fit: contain;">
+                        </div>
+
+                        <input type="file"
+                               name="thumbnail"
+                               id="thumbnailInput"
+                               accept="image/*"
+                               class="form-control"
+                               onchange="previewImage(this)">
                         <div class="form-text">Không bắt buộc, nhưng nên có.</div>
                     </div>
                 </div>
@@ -82,6 +97,24 @@
         </div>
     </div>
 </div>
+
+<script>
+    function previewImage(input) {
+        const preview = document.getElementById('thumbnailPreview');
+
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+            };
+
+            reader.readAsDataURL(input.files[0]);
+        } else {
+            preview.src = 'https://via.placeholder.com/300x200?text=Chọn+ảnh';
+        }
+    }
+</script>
 
 </body>
 </html>

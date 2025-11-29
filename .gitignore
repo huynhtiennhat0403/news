@@ -37,3 +37,6 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Database Connection Config ###
+src/main/java/com/example/app/utils/DBConnection.java

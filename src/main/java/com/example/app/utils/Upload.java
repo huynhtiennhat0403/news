@@ -3,50 +3,74 @@ package com.example.app.utils;
 import jakarta.servlet.http.Part;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
 
 public class Upload {
 
-    // Thư mục lưu ảnh (Trong thực tế nên để đường dẫn tuyệt đối ra ngoài project)
-    // Nhưng để demo chạy được ngay, ta lưu vào folder 'uploads' trong webapp
-    private static final String UPLOAD_DIR = "uploads";
+    private static final String UPLOAD_DIR = getUploadDirectory();
 
-    /**
-     * Xử lý lưu file từ Part (Servlet 3.0)
-     * @param part đối tượng Part từ request.getPart("name")
-     * @param realPath đường dẫn thực của thư mục gốc webapp (request.getServletContext().getRealPath(""))
-     * @return Tên file đã lưu (để lưu vào database) hoặc null nếu lỗi
-     */
+    private static String getUploadDirectory() {
+        String os = System.getProperty("os.name").toLowerCase();
+        if (os.contains("win")) {
+            return "D:/uploads";  // Windows
+        } else {
+            return "/var/www/uploads";  // Linux/Mac
+        }
+    }
+
     public static String saveFile(Part part, String realPath) {
+        return saveFile(part);
+    }
+
+    public static String saveFile(Part part) {
         try {
+            if (part == null || part.getSize() == 0) {
+                return null;
+            }
+
             String fileName = Paths.get(part.getSubmittedFileName()).getFileName().toString();
             if (fileName == null || fileName.isEmpty()) {
                 return null;
             }
 
-            // Đổi tên file thành chuỗi ngẫu nhiên để tránh trùng tên (VD: avatar.jpg -> 123e4567-avatar.jpg)
             String uniqueFileName = UUID.randomUUID().toString() + "_" + fileName;
 
-            // Tạo thư mục uploads nếu chưa có
-            String uploadPath = realPath + File.separator + UPLOAD_DIR;
-            File uploadDir = new File(uploadPath);
+            File uploadDir = new File(UPLOAD_DIR);
             if (!uploadDir.exists()) {
-                uploadDir.mkdir();
+                boolean created = uploadDir.mkdirs();
+                if (created) {
+                    System.out.println("✅ Đã tạo thư mục: " + UPLOAD_DIR);
+                }
             }
 
-            // Lưu file
-            String fullPath = uploadPath + File.separator + uniqueFileName;
+            String fullPath = UPLOAD_DIR + File.separator + uniqueFileName;
             part.write(fullPath);
 
-            // Trả về đường dẫn tương đối để lưu DB (VD: uploads/123-anh.jpg)
-            return UPLOAD_DIR + "/" + uniqueFileName;
+            System.out.println("✅ Đã lưu file: " + fullPath);
+
+            return uniqueFileName;
 
         } catch (IOException e) {
+            System.err.println("❌ Lỗi upload file: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
+    }
+
+    public static boolean deleteFile(String fileName) {
+        if (fileName == null || fileName.isEmpty()) {
+            return false;
+        }
+
+        File file = new File(UPLOAD_DIR + File.separator + fileName);
+        if (file.exists() && file.isFile()) {
+            boolean deleted = file.delete();
+            if (deleted) {
+                System.out.println("✅ Đã xóa file: " + fileName);
+            }
+            return deleted;
+        }
+        return false;
     }
 }

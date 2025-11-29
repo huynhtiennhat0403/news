@@ -12,6 +12,8 @@
     <style>
         .article-card img { height: 200px; object-fit: cover; }
         .article-card:hover { transform: translateY(-5px); transition: 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .navbar-nav .nav-link { padding: 0.5rem 1rem; }
+        .navbar-nav .nav-link.active { background-color: rgba(255,255,255,0.2); border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -23,11 +25,53 @@
             <i class="bi bi-newspaper"></i> DAILY NEWS
         </a>
 
-        <div class="collapse navbar-collapse">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarContent">
             <ul class="navbar-nav me-auto">
-                <li class="nav-item"><a class="nav-link active" href="#">Trang chủ</a></li>
-                <li class="nav-item"><a class="nav-link" href="#">Thế giới</a></li>
-                <li class="nav-item"><a class="nav-link" href="#">Công nghệ</a></li>
+                <%-- Tab "Tất cả" --%>
+                <li class="nav-item">
+                    <a class="nav-link ${empty param.category ? 'active' : ''}"
+                       href="${pageContext.request.contextPath}/home">
+                        <i class="bi bi-house-door"></i> Tất cả
+                    </a>
+                </li>
+
+                <%-- Lặp qua tất cả categories từ database --%>
+                <c:forEach var="cat" items="${categories}" varStatus="status">
+                    <%-- Chỉ hiển thị tối đa 5 categories trên navbar --%>
+                    <c:if test="${status.index < 5}">
+                        <li class="nav-item">
+                            <a class="nav-link ${param.category == cat.id ? 'active' : ''}"
+                               href="${pageContext.request.contextPath}/home?category=${cat.id}">
+                                    ${cat.name}
+                            </a>
+                        </li>
+                    </c:if>
+                </c:forEach>
+
+                <%-- Nếu có nhiều hơn 5 categories, hiển thị dropdown "Xem thêm" --%>
+                <c:if test="${categories.size() > 5}">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            Xem thêm
+                        </a>
+                        <ul class="dropdown-menu">
+                            <c:forEach var="cat" items="${categories}" varStatus="status">
+                                <c:if test="${status.index >= 5}">
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="${pageContext.request.contextPath}/home?category=${cat.id}">
+                                                ${cat.name}
+                                        </a>
+                                    </li>
+                                </c:if>
+                            </c:forEach>
+                        </ul>
+                    </li>
+                </c:if>
             </ul>
 
             <!-- Phần kiểm tra đăng nhập -->
@@ -73,21 +117,36 @@
     <div class="row">
         <!-- Danh sách bài viết -->
         <div class="col-md-9">
-            <h3 class="border-bottom pb-2 mb-4 text-primary">Tin Mới Nhất</h3>
+            <%-- Tiêu đề động dựa vào category --%>
+            <h3 class="border-bottom pb-2 mb-4 text-primary">
+                <c:choose>
+                    <c:when test="${not empty currentCategory}">
+                        <i class="bi bi-tag"></i> ${currentCategory.name}
+                    </c:when>
+                    <c:otherwise>
+                        <i class="bi bi-newspaper"></i> Tin Mới Nhất
+                    </c:otherwise>
+                </c:choose>
+            </h3>
 
             <c:if test="${empty articles}">
-                <div class="alert alert-info">Chưa có bài viết nào được đăng.</div>
+                <div class="alert alert-info">Chưa có bài viết nào.</div>
             </c:if>
 
             <div class="row">
                 <c:forEach var="a" items="${articles}">
                     <div class="col-md-4 mb-4">
                         <div class="card article-card h-100 border-0 shadow-sm">
-                            <img src="${a.thumbnail != null ? a.thumbnail : 'https://via.placeholder.com/300x200'}" class="card-img-top" alt="...">
+                            <img src="${not empty a.thumbnail ? pageContext.request.contextPath.concat('/images/').concat(a.thumbnail) : 'https://via.placeholder.com/300x200'}"
+                                 class="card-img-top"
+                                 alt="${a.title}"
+                                 onerror="this.src='https://via.placeholder.com/300x200'">
+
                             <div class="card-body">
                                 <span class="badge bg-secondary mb-2">${a.categoryName}</span>
                                 <h5 class="card-title">
-                                    <a href="${pageContext.request.contextPath}/article-detail?id=${a.id}" class="text-decoration-none text-dark">${a.title}</a>
+                                    <a href="${pageContext.request.contextPath}/article-detail?id=${a.id}"
+                                       class="text-decoration-none text-dark">${a.title}</a>
                                 </h5>
                                 <p class="card-text text-muted small">${a.shortDescription}</p>
                             </div>
@@ -103,11 +162,50 @@
 
         <!-- Sidebar bên phải -->
         <div class="col-md-3">
+            <%-- Tin nổi bật từ database --%>
             <div class="card mb-3">
-                <div class="card-header bg-primary text-white">Tin Nổi Bật</div>
+                <div class="card-header bg-primary text-white">
+                    <i class="bi bi-fire"></i> Tin Nổi Bật
+                </div>
                 <ul class="list-group list-group-flush">
-                    <li class="list-group-item"><a href="#" class="text-decoration-none">Top 10 sự kiện IT</a></li>
-                    <li class="list-group-item"><a href="#" class="text-decoration-none">Java Servlet là gì?</a></li>
+                    <c:choose>
+                        <c:when test="${not empty featuredArticles}">
+                            <c:forEach var="fa" items="${featuredArticles}" varStatus="status">
+                                <li class="list-group-item">
+                                    <a href="${pageContext.request.contextPath}/article-detail?id=${fa.id}"
+                                       class="text-decoration-none d-flex align-items-start">
+                                        <span class="badge bg-danger me-2">${status.index + 1}</span>
+                                        <span class="small">${fa.title}</span>
+                                    </a>
+                                </li>
+                            </c:forEach>
+                        </c:when>
+                        <c:otherwise>
+                            <li class="list-group-item">
+                                <small class="text-muted">Chưa có tin nổi bật</small>
+                            </li>
+                        </c:otherwise>
+                    </c:choose>
+                </ul>
+            </div>
+
+            <%-- Danh mục --%>
+            <div class="card mb-3">
+                <div class="card-header bg-secondary text-white">
+                    <i class="bi bi-list"></i> Danh Mục
+                </div>
+                <ul class="list-group list-group-flush">
+                    <c:forEach var="cat" items="${categories}">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <a href="${pageContext.request.contextPath}/home?category=${cat.id}"
+                               class="text-decoration-none ${param.category == cat.id ? 'fw-bold text-primary' : ''}">
+                                    ${cat.name}
+                            </a>
+                                <%-- Lấy count từ Map --%>
+                            <c:set var="count" value="${categoryCount[cat.id]}" />
+                            <span class="badge bg-primary rounded-pill">${count != null ? count : 0}</span>
+                        </li>
+                    </c:forEach>
                 </ul>
             </div>
         </div>

@@ -4,17 +4,12 @@ import com.example.app.model.Article;
 import com.example.app.enums.ArticleStatus;
 import com.example.app.utils.DBConnection;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.Timestamp;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
 public class ArticleDAO {
 
-    // Lấy danh sách bài viết ĐÃ ĐĂNG (PUBLISHED) cho trang chủ
-    // Sắp xếp bài mới nhất lên đầu
     public List<Article> findAllPublished() {
         List<Article> list = new ArrayList<>();
         String sql = "SELECT a.*, u.full_name, c.name as category_name " +
@@ -79,13 +74,15 @@ public class ArticleDAO {
                 a.setCreatedAt(rs.getTimestamp("created_at"));
                 a.setUpdatedAt(rs.getTimestamp("updated_at"));
 
-                // Chuyển đổi string sang enum
                 String statusStr = rs.getString("status");
                 a.setStatus(ArticleStatus.valueOf(statusStr));
 
-                // Các trường bổ sung
                 a.setAuthorName(rs.getString("full_name"));
                 a.setCategoryName(rs.getString("category_name"));
+
+                // ✅ THÊM 2 dòng này
+                a.setAdminMessage(rs.getString("admin_message"));
+                a.setUserMessage(rs.getString("user_message"));
 
                 list.add(a);
             }
@@ -95,8 +92,6 @@ public class ArticleDAO {
         return list;
     }
 
-    // Lưu bài viết mới vào database
-    // Trả về true nếu thành công, false nếu thất bại
     public boolean save(Article article) {
         String sql = "INSERT INTO articles (title, short_description, content, thumbnail, " +
                 "category_id, user_id, status, created_at, updated_at) " +
@@ -615,4 +610,77 @@ public class ArticleDAO {
         }
         return list;
     }
+
+    public List<Article> findTopViewed(int limit) {
+        List<Article> articles = new ArrayList<>();
+        String sql = "SELECT a.*, u.full_name as author_name, c.name as category_name " +
+                "FROM articles a " +
+                "JOIN users u ON a.user_id = u.id " +
+                "JOIN categories c ON a.category_id = c.id " +
+                "WHERE a.status = 'PUBLISHED' " +
+                "ORDER BY a.views DESC " +
+                "LIMIT ?";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, limit);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                articles.add(mapResultSetToArticle(rs));
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return articles;
+    }
+
+    private Article mapResultSetToArticle(ResultSet rs) throws SQLException {
+        Article article = new Article();
+
+        article.setId(rs.getInt("id"));
+        article.setTitle(rs.getString("title"));
+        article.setShortDescription(rs.getString("short_description"));
+        article.setContent(rs.getString("content"));
+        article.setThumbnail(rs.getString("thumbnail"));
+        article.setViews(rs.getInt("views"));
+        article.setStatus(ArticleStatus.valueOf(rs.getString("status")));
+        article.setUserId(rs.getInt("user_id"));
+        article.setCategoryId(rs.getInt("category_id"));
+        article.setCreatedAt(rs.getTimestamp("created_at"));
+        article.setUpdatedAt(rs.getTimestamp("updated_at"));
+
+        // Nếu JOIN với bảng users
+        try {
+            article.setAuthorName(rs.getString("author_name"));
+        } catch (SQLException e) {
+            // Không có column author_name (không JOIN)
+        }
+
+        // Nếu JOIN với bảng categories
+        try {
+            article.setCategoryName(rs.getString("category_name"));
+        } catch (SQLException e) {
+            // Không có column category_name (không JOIN)
+        }
+
+        // Các trường khác (nếu có)
+        try {
+            article.setAdminMessage(rs.getString("admin_message"));
+        } catch (SQLException e) {
+            // Không có column này
+        }
+
+        try {
+            article.setUserMessage(rs.getString("user_message"));
+        } catch (SQLException e) {
+            // Không có column này
+        }
+
+        return article;
+    }
+
 }

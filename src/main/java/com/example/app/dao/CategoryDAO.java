@@ -8,7 +8,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class CategoryDAO {
 
@@ -90,4 +92,30 @@ public class CategoryDAO {
             return false;
         }
     }
+
+    public Map<Integer, Integer> getCategoryArticleCount() {
+        Map<Integer, Integer> countMap = new HashMap<>();
+        String sql = "SELECT category_id, COUNT(*) as article_count " +
+                "FROM articles " +
+                "WHERE status = 'PUBLISHED' " +
+                "GROUP BY category_id";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                int categoryId = rs.getInt("category_id");
+                int count = rs.getInt("article_count");
+                countMap.put(categoryId, count);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return countMap;
+    }
+
+
 }

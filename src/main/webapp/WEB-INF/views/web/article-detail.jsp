@@ -91,13 +91,14 @@
                             </div>
                         </c:if>
 
-                        <!-- Thumbnail -->
+                        <!-- ✅ Thumbnail - ĐÃ SỬA -->
                         <c:if test="${not empty article.thumbnail}">
                             <div class="mb-3 text-center">
-                                <img src="${pageContext.request.contextPath}/${article.thumbnail}"
-                                     alt="Thumbnail"
+                                <img src="${pageContext.request.contextPath}/images/${article.thumbnail}"
+                                     alt="${article.title}"
                                      class="img-fluid rounded"
-                                     style="max-height: 400px; object-fit: cover;">
+                                     style="max-height: 400px; object-fit: cover;"
+                                     onerror="this.src='https://via.placeholder.com/800x400'">
                             </div>
                         </c:if>
 

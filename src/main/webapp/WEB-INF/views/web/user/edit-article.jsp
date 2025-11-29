@@ -41,14 +41,12 @@
 
                 <div class="mb-3">
                     <label class="form-label">Mô tả ngắn <span class="text-danger">*</span></label>
-                    <textarea name="shortDescription" rows="3" class="form-control" required>
-                        ${article.shortDescription}</textarea>
+                    <textarea name="shortDescription" rows="3" class="form-control" required>${article.shortDescription}</textarea>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label">Nội dung <span class="text-danger">*</span></label>
-                    <textarea name="content" rows="10" class="form-control" required>
-                        ${article.content}</textarea>
+                    <textarea name="content" rows="10" class="form-control" required>${article.content}</textarea>
                 </div>
 
                 <div class="row">
@@ -65,13 +63,24 @@
                     </div>
 
                     <div class="mb-3 col-md-6">
-                        <label class="form-label">Thumbnail hiện tại</label><br>
-                        <c:if test="${not empty article.thumbnail}">
-                            <img src="${pageContext.request.contextPath}/${article.thumbnail}"
-                                 alt="Thumbnail"
-                                 class="img-thumbnail mb-2" style="max-height: 120px;">
-                        </c:if>
-                        <input type="file" name="thumbnail" accept="image/*" class="form-control">
+                        <label class="form-label">Thumbnail</label><br>
+
+                        <!-- Preview ảnh -->
+                        <div class="mb-2">
+                            <img id="thumbnailPreview"
+                                 src="${not empty article.thumbnail ? pageContext.request.contextPath.concat('/images/').concat(article.thumbnail) : 'https://via.placeholder.com/300x200?text=Chưa+có+ảnh'}"
+                                 alt="Preview"
+                                 class="img-thumbnail"
+                                 style="max-height: 200px; width: 100%; object-fit: contain;"
+                                 onerror="this.src='https://via.placeholder.com/300x200?text=Lỗi+tải+ảnh'">
+                        </div>
+
+                        <input type="file"
+                               name="thumbnail"
+                               id="thumbnailInput"
+                               accept="image/*"
+                               class="form-control"
+                               onchange="previewImage(this)">
                         <div class="form-text">Để trống nếu không muốn thay đổi ảnh.</div>
                     </div>
                 </div>
@@ -96,6 +105,23 @@
         </div>
     </div>
 </div>
+
+<script>
+    // Preview ảnh khi chọn file mới
+    function previewImage(input) {
+        const preview = document.getElementById('thumbnailPreview');
+
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+            };
+
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+</script>
 
 </body>
 </html>

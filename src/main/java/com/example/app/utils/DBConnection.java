@@ -14,7 +14,7 @@ public class DBConnection {
 
     // ⚠️ LƯU Ý: Thay đổi username/password tương ứng với máy của bạn
     private static final String USER = "root";
-    private static final String PASSWORD = "Bonbone@0403"; // Máy mình không pass, nếu máy bạn có pass (vd: 123456) thì điền vào đây
+    private static final String PASSWORD = "123456"; // Máy mình không pass, nếu máy bạn có pass (vd: 123456) thì điền vào đây
 
     // Hàm lấy kết nối
     public static Connection getConnection() {
